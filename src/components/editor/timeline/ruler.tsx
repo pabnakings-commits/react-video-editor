@@ -3,10 +3,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   MICROSECONDS_PER_SECOND,
   PIXELS_PER_SECOND,
-  SECONDARY_FONT,
   TIMELINE_OFFSET_CANVAS_LEFT,
   ITimelineScaleState,
 } from "@openvideo/timeline";
+import { SECONDARY_FONT } from "../constants/constants";
 import { useStore } from "zustand";
 import { projectStore } from "@/lib/project";
 import { useTimelineOffsetX } from "../hooks/use-timeline-offset";

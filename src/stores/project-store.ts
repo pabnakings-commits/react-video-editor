@@ -23,8 +23,8 @@ interface ProjectState {
   resetProject: () => void;
 }
 
-export const DEFAULT_CANVAS_SIZE: CanvasSize = { width: 1080, height: 1920 };
-export const DEFAULT_ASPECT_RATIO = "9:16";
+export const DEFAULT_CANVAS_SIZE: CanvasSize = { width: 1920, height: 1080 };
+export const DEFAULT_ASPECT_RATIO = "16:9";
 export const DEFAULT_FPS = 30;
 
 const DEFAULT_STATE = {
@@ -55,7 +55,7 @@ export const useProjectStore = create<ProjectState>()(
     }),
     {
       name: "openvideo-project-storage",
-      version: 1,
+      version: 2,
       // Never persist transient/session-specific fields
       partialize: (state) => ({
         canvasSize: state.canvasSize,
@@ -63,6 +63,16 @@ export const useProjectStore = create<ProjectState>()(
         fps: state.fps,
       }),
       migrate: (persistedState: any, version: number) => {
+        // v1 -> v2: default canvas flipped from 9:16 to 16:9. Drop the old
+        // persisted canvas/aspect so browsers with prior local state pick up
+        // the new default instead of staying stuck on the old one.
+        if (version < 2) {
+          return {
+            ...persistedState,
+            canvasSize: DEFAULT_CANVAS_SIZE,
+            aspectRatio: DEFAULT_ASPECT_RATIO,
+          };
+        }
         return persistedState as ProjectState;
       },
     },

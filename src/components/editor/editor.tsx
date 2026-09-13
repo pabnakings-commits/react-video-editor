@@ -14,6 +14,7 @@ import { RightPanel } from "./right-panel";
 import { core } from "@/lib/project";
 import { IProject } from "@openvideo/core";
 import { useProjectStore } from "@/stores/project-store";
+import { useBackendProjectStore } from "@/stores/backend-project-store";
 import Header from "./header";
 import { data } from "./data";
 
@@ -25,18 +26,24 @@ export default function Editor({
 }) {
   const resetProject = useProjectStore((state) => state.resetProject);
   const { editorMode, showLeftPanel, showRightPanel, showTimeline } = usePanelStore();
+  const loadFromBackend = useBackendProjectStore((state) => state.loadFromBackend);
 
   const [isReady, setIsReady] = useState(false);
   const [isWebCodecsSupported, setIsWebCodecsSupported] = useState(true);
 
-  // Load default template on mount
+  // Load the real project from the FastAPI backend when ?project=<id> is
+  // present (e.g. /?project=colony); otherwise fall back to the stock demo
+  // template so the editor still opens standalone.
   useEffect(() => {
     resetProject();
     core.project.new();
-    setTimeout(() => {
-      core.project.import(data);
+    setTimeout(async () => {
+      const loaded = await loadFromBackend();
+      if (!loaded) {
+        core.project.import(data);
+      }
     }, 500);
-  }, [resetProject]);
+  }, [resetProject, loadFromBackend]);
 
   useEffect(() => {
     const checkSupport = async () => {

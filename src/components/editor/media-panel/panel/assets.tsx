@@ -34,6 +34,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { useProjectStore } from "@/stores/project-store";
 import { useAssetsStore, type ProjectFile } from "@/stores/assets-store";
+import { useBackendProjectStore } from "@/stores/backend-project-store";
+import { srcStartFor } from "@/lib/timeline-adapter";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -542,8 +544,38 @@ export default function PanelAssets({ showHeader = true }: PanelAssetsProps) {
   };
 
   // Add item to canvas on click
+  /** Replace Clip: when exactly one video clip is selected on the timeline,
+   * clicking an asset here swaps its content in place — same position and
+   * duration, only what plays changes — instead of adding a new clip. This
+   * mirrors the backend's `/timeline/video/{id}/replace` semantics (which
+   * this app reaches indirectly: the swap happens in-memory here, then a
+   * normal Save round-trips it through openVideoToBackendTimeline). */
+  const tryReplaceSelectedClip = (asset: VisualAsset): boolean => {
+    if (asset.type !== "video") return false;
+    const state = core.store.getState();
+    if (state.selectedIds.length !== 1) return false;
+    const target = state.clips[state.selectedIds[0]];
+    if (!target || target.type !== "Video") return false;
+
+    const backendAsset = useBackendProjectStore.getState().assetsById[asset.id];
+    const durationUs = target.timing.display.to - target.timing.display.from;
+    const srcStart = srcStartFor(backendAsset, 0); // fresh clip: start from the new shot's beginning
+
+    core.clip.update(target.id, {
+      src: asset.src,
+      name: asset.name,
+      timing: {
+        ...target.timing,
+        trim: { from: srcStart * 1_000_000, to: (srcStart * 1_000_000) + durationUs },
+      },
+      metadata: { ...target.metadata, asset_id: asset.id, selection_debug: { manually_replaced: true } },
+    } as any);
+    return true;
+  };
+
   const addItemToCanvas = async (asset: VisualAsset) => {
     try {
+      if (tryReplaceSelectedClip(asset)) return;
       const typeMap: Record<MediaType, string> = { image: "Image", video: "Video", audio: "Audio" };
       const clipData: any = {
         type: typeMap[asset.type] as any,

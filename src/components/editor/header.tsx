@@ -31,11 +31,50 @@ import {
 import { RiLockLine, RiArrowDownSLine } from "@remixicon/react";
 import { core } from "@/lib/project";
 import { data } from "./data";
+import { useBackendProjectStore } from "@/stores/backend-project-store";
+import { nanoid } from "nanoid";
 
 export default function Header() {
-  const { projectName, resetProject, setProjectName } = useProjectStore();
+  const { projectName, resetProject, setProjectName, canvasSize } = useProjectStore();
   const [isExportOpen, setIsExportOpen] = useState(false);
   const { theme, setTheme } = useTheme();
+  const {
+    projectId: backendProjectId,
+    saving,
+    saveToBackend,
+    renderFinal,
+    renderStatus,
+    renderOutputPath,
+    error: backendError,
+    historyBusy,
+    undoBackend,
+    redoBackend,
+  } = useBackendProjectStore();
+
+  const handleSave = async () => {
+    try {
+      await saveToBackend();
+    } catch {
+      // error already captured in the store; surfaced via renderLabel below
+    }
+  };
+
+  const handleRenderFinal = async () => {
+    try {
+      await renderFinal();
+    } catch {
+      // error already captured in the store
+    }
+  };
+
+  const renderLabel =
+    renderStatus === "queued" || renderStatus === "running"
+      ? "Rendering…"
+      : renderStatus === "done"
+        ? "Render done"
+        : renderStatus === "error"
+          ? "Render failed"
+          : "Render Final";
 
   const {
     showLeftPanel,
@@ -50,6 +89,13 @@ export default function Header() {
   const handleNewProject = () => {
     resetProject();
     core.project.new();
+    // core.project.new() resets to the engine's own internal blank-project
+    // size, not our store's default — force it back to our (16:9) default.
+    core.execute({
+      id: nanoid(),
+      type: "project.updateSettings",
+      payload: { width: canvasSize.width, height: canvasSize.height },
+    });
   };
 
   const handleExportJSON = () => {
@@ -215,6 +261,55 @@ export default function Header() {
 
         {/* Right Column: Aspect Ratio and Export Button */}
         <div className="flex items-center justify-end gap-2">
+          {backendProjectId && (
+            <>
+              {backendError && (
+                <span className="text-xs text-destructive max-w-[220px] truncate" title={backendError}>
+                  {backendError}
+                </span>
+              )}
+              {renderStatus === "done" && renderOutputPath && (
+                <span className="text-xs text-muted-foreground max-w-[220px] truncate" title={renderOutputPath}>
+                  {renderOutputPath}
+                </span>
+              )}
+              <Button
+                variant="outline"
+                className="h-7 text-xs font-semibold px-3 rounded-md"
+                onClick={undoBackend}
+                disabled={historyBusy}
+                title="Undo (saved history — survives reload/restart)"
+              >
+                Undo
+              </Button>
+              <Button
+                variant="outline"
+                className="h-7 text-xs font-semibold px-3 rounded-md"
+                onClick={redoBackend}
+                disabled={historyBusy}
+                title="Redo (saved history — survives reload/restart)"
+              >
+                Redo
+              </Button>
+              <Button
+                variant="outline"
+                className="h-7 text-xs font-semibold px-3 rounded-md"
+                onClick={handleSave}
+                disabled={saving}
+              >
+                {saving ? "Saving…" : "Save"}
+              </Button>
+              <Button
+                variant="outline"
+                className="h-7 text-xs font-semibold px-3 rounded-md"
+                onClick={handleRenderFinal}
+                disabled={renderStatus === "queued" || renderStatus === "running"}
+              >
+                {renderLabel}
+              </Button>
+            </>
+          )}
+
           {/* Taskbar Button */}
           <TaskbarPopover>
             <RiArchiveDrawerLine className="size-4" />
